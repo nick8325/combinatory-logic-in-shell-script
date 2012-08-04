@@ -286,6 +286,7 @@ input=$(lam K $(app read "$input_"))
 
 # this program reads in numbers until you type in 0.
 # then it prints their sum.
+# beware! it is very slow! :)
 
 done=$(app "$print" Acc)
 acc_=$(app3 "$plus" Acc N)
