@@ -185,7 +185,7 @@ unsafe() {
 #   read -- read term x
 #   toch -- turn a shell number into a church numeral
 #   succ -- increment a shell number
-reduce1() {
+reduce() {
     context=end
     prog="$*"
 
