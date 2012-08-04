@@ -49,15 +49,7 @@ app()
     if [ $# -ne 2 ]; then
         err app
     fi
-    res=$(pair "$1" "$2")
-    if [ $OPT = y ]; then
-        OLD_SAFE=$SAFE
-        export SAFE=yes
-        reduce $res
-        export SAFE=$OLD_SAFE
-    else
-        echo $res
-    fi
+    simplify $(pair "$1" "$2")
 }
 app3()
 {
@@ -150,17 +142,11 @@ repack() {
     echo $prog
 }
 
-# terminate with a value
-stop() {
-    repack "$context" "$prog"
-}
-
 # terminate if a combinator is undersaturated
 args() {
     right=$context
     for _ in $(seq 1 $1); do
         if ! split $right; then
-            stop
             return 1
         fi
     done
@@ -171,7 +157,6 @@ args() {
 SAFE=
 unsafe() {
     if [ z$SAFE != z ]; then
-        stop
         return 1
     fi
 }
@@ -185,116 +170,136 @@ unsafe() {
 #   read -- read term x
 #   toch -- turn a shell number into a church numeral
 #   succ -- increment a shell number
-reduce() {
+reduce1() {
     context=end
     prog="$*"
 
     while true; do
-        if [ "z$context" = zend ] && [ z$SAFE = z ]; then
-            echo "$INDENT-> $prog" >&2
-            echo >&2
-        fi
         case "$prog" in
-        echo)
-            (unsafe && args 1) || return
-            split $context
-            echo The answer is: $(force $left) >&2
-            prog=$(repack "$right" i)
-            context=end
-            ;;
-        read)
-            (unsafe && args 1) || return
-            read -p "Enter a number: " i
-            split $context
-            k=$(app "$left" $i)
-            prog=$(repack "$right" "$k")
-            context=end
-            ;;
-        toch)
-            (unsafe && args 1) || return
-            split $context
-            i=$(force $left)
-            num=Z
-            for _ in $(seq 1 $i); do
-                num=$(app S "$num")
-            done
-            num=$(lam S $(lam Z $num))
-            prog=$(repack "$right" "$num")
-            context=end
-            ;;
-        succ)
-            (unsafe && args 1) || return
-            split $context
-            x=$(($(force $left)+1))
-            prog=$(repack "$right" $x)
-            context=end
-            ;;
-        s)
-            (unsafe && args 3) || return
-            split $context
-            x=$left
-            split $right
-            y=$left
-            split $right
-            z=$left
-            a=$(app "$x" "$z")
-            b=$(app "$y" "$z")
-            c=$(app "$a" "$b")
-            prog=$(repack "$right" "$c")
-            context=end
-            ;;
-        f)
-            args 3 || return
-            split $context
-            x=$left
-            split $right
-            y=$left
-            split $right
-            z=$left
-            r=$(app3 "$x" "$z" "$y")
-            prog=$(repack "$right" "$r")
-            context=end
-            ;;
-        c)
-            args 3 || return
-            split $context
-            x=$left
-            split $right
-            y=$left
-            split $right
-            z=$left
-            yz=$(app "$y" "$z")
-            r=$(app "$x" "$yz")
-            prog=$(repack "$right" "$r")
-            context=end
-            ;;
-        k)
-            args 2 || return
-            split $context
-            x=$left
-            split $right
-            y=$left
-            prog=$(repack "$right" "$x")
-            context=end
-            ;;
-        i)
-            args 1 || return
-            split $context
-            prog=$(repack "$right" "$left")
-            context=end
-            ;;
         "("*)
             split $prog
             prog="$left"
             context=$(pair "$right" "$context")
             ;;
         *)
-            stop
-            return
+            break
             ;;
         esac
     done
+
+    case "$prog" in
+    echo)
+        (unsafe && args 1) || return 1
+        split $context
+        echo The answer is: $(force $left) >&2
+        echo $(repack "$right" i)
+        ;;
+    read)
+        (unsafe && args 1) || return 1
+        read -p "Enter a number: " i
+        split $context
+        k=$(app "$left" $i)
+        echo $(repack "$right" "$k")
+        ;;
+    toch)
+        (unsafe && args 1) || return 1
+        split $context
+        i=$(force $left)
+        num=Z
+        for _ in $(seq 1 $i); do
+            num=$(app S "$num")
+        done
+        num=$(lam S $(lam Z $num))
+        echo $(repack "$right" "$num")
+        ;;
+    succ)
+        (unsafe && args 1) || return 1
+        split $context
+        x=$(($(force $left)+1))
+        echo $(repack "$right" $x)
+        ;;
+    s)
+        (unsafe && args 3) || return 1
+        split $context
+        x=$left
+        split $right
+        y=$left
+        split $right
+        z=$left
+        a=$(app "$x" "$z")
+        b=$(app "$y" "$z")
+        c=$(app "$a" "$b")
+        echo $(repack "$right" "$c")
+        ;;
+    f)
+        args 3 || return 1
+        split $context
+        x=$left
+        split $right
+        y=$left
+        split $right
+        z=$left
+        r=$(app3 "$x" "$z" "$y")
+        echo $(repack "$right" "$r")
+        ;;
+    c)
+        args 3 || return 1
+        split $context
+        x=$left
+        split $right
+        y=$left
+        split $right
+        z=$left
+        yz=$(app "$y" "$z")
+        r=$(app "$x" "$yz")
+        echo $(repack "$right" "$r")
+        ;;
+    k)
+        args 2 || return 1
+        split $context
+        x=$left
+        split $right
+        y=$left
+        echo $(repack "$right" "$x")
+        ;;
+    i)
+        args 1 || return 1
+        split $context
+        echo $(repack "$right" "$left")
+        ;;
+    *)
+        return 1
+        ;;
+    esac
 }
+
+reduce() {
+    prog=$*
+    arrow="  "
+
+    echo >&2
+    while [ "$prog" != stuck ]; do
+        echo "$INDENT$arrow $prog" >&2
+        arrow="->"
+        oldprog=$prog
+        prog=$(reduce1 $prog || echo stuck)
+    done
+
+    echo $oldprog
+}
+
+if [ z$OPT = zy ]; then
+simplify() {
+    OLD_SAFE=$SAFE
+    export SAFE=yes
+    reduce1 $* || echo $*
+    export SAFE=$OLD_SAFE
+}
+else
+simplify() {
+    echo $*
+}
+fi
 force() {
     OLD_INDENT=$INDENT
     INDENT="$INDENT  "
@@ -318,7 +323,6 @@ print=$(lam N $(app echo "$(app3 N succ 0)"))
 input_=$(lam N $(app K "$(app toch N)"))
 input=$(lam K $(app read "$input_"))
 unsafe || echo oops
-reduce $(app "$input" "$print")
 
 # this program reads in numbers until you type in 0.
 # then it prints their sum.
