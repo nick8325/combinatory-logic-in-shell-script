@@ -16,17 +16,18 @@ split_()
     left=
     stack=1
     shift
-    while (( $stack != 0 )) ; do
+    while [ $stack -ne 0 ] ; do
         case $1 in
-        "(" ) ((stack=$stack+1)) ;;
-        ")" ) ((stack=$stack-1)) ;;
+        "(" ) stack=$(($stack+1)) ;;
+        ")" ) stack=$(($stack-1)) ;;
         esac
-        if (( $stack != 0 )); then
+        if [ $stack -ne 0 ]; then
             left="$left $1"
         fi
         shift
     done
-    export left=$(echo $left)
+    left=$(echo $left)
+    export left
     export right="$*"
 }
 split()
@@ -35,14 +36,14 @@ split()
 }
 app()
 {
-    if (( $# != 2 )); then
+    if [ $# -ne 2 ]; then
         err app
     fi
     echo "( $1 ) $2"
 }
 app3()
 {
-    if (( $# != 3 )); then
+    if [ $# -ne 3 ]; then
         err app3
     fi
     lhs=$(app "$1" "$2")
@@ -50,7 +51,7 @@ app3()
 }
 app4()
 {
-    if (( $# != 4 )); then
+    if [ $# -ne 4 ]; then
         err app4
     fi
     lhs=$(app3 "$1" "$2" "$3")
@@ -191,7 +192,7 @@ reduce() {
         succ)
             args 1 || return
             split $context
-            ((x=$(force $left)+1))
+            x=$(($(force $left)+1))
             prog=$(repack "$right" $x)
             context=end
             ;;
