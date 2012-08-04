@@ -57,6 +57,7 @@ app4()
     app "$lhs" "$4"
 }
 
+# free variables
 free_() {
     x=$1
     shift
@@ -71,6 +72,7 @@ free() {
     free_ $(echo $*)
 }
 
+# lambda abstraction
 lam_() {
     x=$1
     shift
@@ -86,14 +88,17 @@ lam_() {
     fi
 
     split $*
+    # Turner-style translation
     if free $x $left; then
         if free $x $right; then
             app3 s "$(lam $x $left)" "$(lam $x $right)"
         else
+            # f: flip
             app3 f "$(lam $x $left)" "$right"
         fi
     else
         if free $x $right; then
+            # c: compose
             app3 c "$left" "$(lam $x $right)"
         else
             err lam
@@ -104,13 +109,16 @@ lam() {
     lam_ $(echo $*)
 }
 
-y_=$(lam X $(app F "$(app X X)"))
-y=$(lam F $(app "$y_" "$y_"))
+#
+# an evaluator
+#
 
-z=$(lam S $(lam Z Z))
-s=$(lam N $(lam S $(lam Z $(app S "$(app3 N S Z)"))))
-isz=$(lam N $(lam T $(lam F $(app3 N "$(lam _ F)" T))))
+# the evaluation function works with a (term, context)
+# pair---a context is a stack of terms.
+# evaluation of t u pushes u onto the context and
+# evaluates t.
 
+# combine a term and a context
 repack() {
     stack=$1
     prog=$2
@@ -122,6 +130,8 @@ repack() {
     done
     echo $prog
 }
+
+# terminate if a combinator is undersaturated
 args() {
     right=$context
     for _ in $(seq 1 $1); do
@@ -132,6 +142,15 @@ args() {
     done
 }
 
+# the evaluator itself
+# combinators:
+#   s, k, i,
+#   c -- composition,
+#   f -- flip,
+#   echo x -- print term x
+#   read -- read term x
+#   toch -- turn a shell number into a church numeral
+#   succ -- increment a shell number
 reduce() {
     context=end
     prog="$*"
@@ -249,12 +268,24 @@ force() {
     INDENT=$OLD_INDENT
 }
 
+# y combinator
+y_=$(lam X $(app F "$(app X X)"))
+y=$(lam F $(app "$y_" "$y_"))
+
+# church numerals
+z=$(lam S $(lam Z Z))
+s=$(lam N $(lam S $(lam Z $(app S "$(app3 N S Z)"))))
+isz=$(lam N $(lam T $(lam F $(app3 N "$(lam _ F)" T))))
+plus=$(lam M $(lam N $(app3 M "$s" N)))
+
+# conversion & i/o of church numerals
 fromch=$(lam N $(app3 N succ 0))
 print=$(lam N $(app echo "$(app3 N succ 0)"))
 input_=$(lam N $(app K "$(app toch N)"))
 input=$(lam K $(app read "$input_"))
 
-plus=$(lam M $(lam N $(app3 M "$s" N)))
+# this program reads in numbers until you type in 0.
+# then it prints their sum.
 
 done=$(app "$print" Acc)
 acc_=$(app3 "$plus" Acc N)
