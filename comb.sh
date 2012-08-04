@@ -1,5 +1,8 @@
 #!/bin/sh
 
+# Perform affine reductions eagerly instead of call-by-name
+OPT=y
+
 INDENT=
 
 err() {
@@ -34,12 +37,27 @@ split()
 {
     split_ $(echo $*)
 }
+pair()
+{
+    if [ $# -ne 2 ]; then
+        err pair
+    fi
+    echo "( $1 ) $2"
+}
 app()
 {
     if [ $# -ne 2 ]; then
         err app
     fi
-    echo "( $1 ) $2"
+    res=$(pair "$1" "$2")
+    if [ $OPT = y ]; then
+        OLD_SAFE=$SAFE
+        export SAFE=yes
+        reduce $res
+        export SAFE=$OLD_SAFE
+    else
+        echo $res
+    fi
 }
 app3()
 {
@@ -126,10 +144,15 @@ repack() {
 
     while [ "$stack" != end ]; do
         split $stack
-        prog=$(app "$prog" "$left")
+        prog=$(pair "$prog" "$left")
         stack=$right
     done
     echo $prog
+}
+
+# terminate with a value
+stop() {
+    repack "$context" "$prog"
 }
 
 # terminate if a combinator is undersaturated
@@ -137,10 +160,20 @@ args() {
     right=$context
     for _ in $(seq 1 $1); do
         if ! split $right; then
-            echo $(repack "$context" "$prog")
+            stop
             return 1
         fi
     done
+}
+
+# in safe mode, don't do possibly nonterminating reductions or i/o,
+# and don't print anything
+SAFE=
+unsafe() {
+    if [ z$SAFE != z ]; then
+        stop
+        return 1
+    fi
 }
 
 # the evaluator itself
@@ -152,25 +185,25 @@ args() {
 #   read -- read term x
 #   toch -- turn a shell number into a church numeral
 #   succ -- increment a shell number
-reduce() {
+reduce1() {
     context=end
     prog="$*"
 
     while true; do
-        if [ "z$context" = zend ]; then
+        if [ "z$context" = zend ] && [ z$SAFE = z ]; then
             echo "$INDENT-> $prog" >&2
             echo >&2
         fi
         case "$prog" in
         echo)
-            args 1 || return
+            (unsafe && args 1) || return
             split $context
             echo The answer is: $(force $left) >&2
             prog=$(repack "$right" i)
             context=end
             ;;
         read)
-            args 1 || return
+            (unsafe && args 1) || return
             read -p "Enter a number: " i
             split $context
             k=$(app "$left" $i)
@@ -178,7 +211,7 @@ reduce() {
             context=end
             ;;
         toch)
-            args 1 || return
+            (unsafe && args 1) || return
             split $context
             i=$(force $left)
             num=Z
@@ -190,14 +223,14 @@ reduce() {
             context=end
             ;;
         succ)
-            args 1 || return
+            (unsafe && args 1) || return
             split $context
             x=$(($(force $left)+1))
             prog=$(repack "$right" $x)
             context=end
             ;;
         s)
-            args 3 || return
+            (unsafe && args 3) || return
             split $context
             x=$left
             split $right
@@ -253,10 +286,10 @@ reduce() {
         "("*)
             split $prog
             prog="$left"
-            context=$(app "$right" "$context")
+            context=$(pair "$right" "$context")
             ;;
         *)
-            repack "$context" "$prog"
+            stop
             return
             ;;
         esac
@@ -284,6 +317,8 @@ fromch=$(lam N $(app3 N succ 0))
 print=$(lam N $(app echo "$(app3 N succ 0)"))
 input_=$(lam N $(app K "$(app toch N)"))
 input=$(lam K $(app read "$input_"))
+unsafe || echo oops
+reduce $(app "$input" "$print")
 
 # this program reads in numbers until you type in 0.
 # then it prints their sum.
