@@ -465,3 +465,58 @@ loop="
           ] ] ] $z"
 
 reduce $(compile $loop)
+
+# cps lists, nil case first
+true="^ T ^ F T"
+false="^ T ^ F F"
+
+nil="^ N ^ C N"
+cons="^ X ^ Xs ^ N ^ C [ C X Xs ]"
+null="^ Xs ^ T ^ F [ Xs T [ ^ _ ^ _ F ] ]"
+
+readlist="
+  ^ K [
+  [ $y
+  ^ Loop ^ Acc [
+    $input
+      ^ N [
+        $isz N
+          [ K Acc ]
+          [ Loop [ $cons N Acc ] ] ] ] ] $nil ]"
+
+writelist="
+  [ $y
+    ^ Loop ^ Xs [
+      Xs i [ ^ Y ^ Ys [ $print Y Loop Ys ] ] ] ]"
+
+foldr="
+  ^ Op ^ E
+  [ $y
+    ^ Loop ^ Xs [
+      Xs E [ ^ Y ^ Ys [ Op Y [ Loop Ys ] ] ] ] ]"
+
+replicate="^ N ^ X [ N [ $cons X ] $nil ]"
+
+drop1="^ Xs [ Xs $nil [ ^ Y ^ Ys Ys ] ]"
+drop="^ N ^ Xs [ N $drop1 Xs ]"
+
+# insertion sort!
+
+leq="^ M ^ N [
+  $null [ $drop N [ $replicate M unit ] ] ]"
+
+insert="
+  ^ X [
+    $y [
+      ^ Loop ^ Xs [
+        Xs [ $cons X $nil ]
+           [ ^ Y ^ Ys
+             [ $leq X Y
+               [ $cons X Xs ]
+               [ $cons Y [ Loop Ys ] ] ] ] ] ] ]"
+
+
+sort="[ $foldr $insert $nil ]"
+
+# try it out:
+# reduce $(compile "$readlist [ c $writelist $sort ]")
