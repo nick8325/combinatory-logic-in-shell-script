@@ -158,11 +158,10 @@ reduce1() {
         (unsafe && args 1) || return 1
         split $context
         i=$(force $left)
-        num=Z
+        prog=$(app k i)
         for _ in $(seq 1 $i); do
-            num=$(app S "$num")
+            prog=$(app "$(app s c)" "$prog")
         done
-        prog=$(lam S $(lam Z $num))
         context=$right
         ;;
     succ)
