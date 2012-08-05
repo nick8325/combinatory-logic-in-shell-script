@@ -383,7 +383,7 @@ compile_() {
             ;;
         "]")
             if [ "$stack" = end ]; then
-                err underflow
+                err mismatched brackets: too many "]"s
             else
                 oldprog=$prog
                 split $stack
@@ -405,7 +405,7 @@ compile_() {
        echo $prog
        ;;
     *)
-       err compile
+       err mismatched brackets: not enough "]"s
        ;;
     esac
 }
