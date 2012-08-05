@@ -16,7 +16,7 @@ err() {
     exit 1
 }
 
-# pairs/function application.
+# encoding of pairs/function application.
 # we encode t u as ( t ) u.
 split_()
 {
@@ -102,11 +102,11 @@ unsafe() {
     fi
 }
 
-# the evaluator itself
+# the evaluator itself.
 # environment variables:
 #   prog -- the current term
 #   context -- the context
-# both are modified by reduction
+# both are modified by reduction.
 # combinators:
 #   s, k, i,
 #   c -- composition,
@@ -331,14 +331,14 @@ lam() {
     lam_ $(echo $*)
 }
 
-# compile a normalish lambda-calculus syntax to combinatory logic
-# application is written with a space
-# \X.t is written as ^ X [ t ]
+# compile a normalish lambda-calculus syntax to combinatory logic.
+# application is written with a space.
+# \X.t is written as ^ X [ t ].
 #   (use uppercase variables because if you use a variable
-#    whose name is the same as a combinator things will go weird)
-# if t is atomic you can write ^ X t instead
-# atomic terms are variables, combinators and lambdas
-# square brackets [ ] are used for grouping
+#    whose name is the same as a combinator things will go weird.)
+# if t is atomic you can write ^ X t instead.
+# atomic terms are variables, combinators and lambdas.
+# square brackets [ ] are used for grouping.
 
 compile() {
     echo $(compile_ $(echo $*))
@@ -406,7 +406,7 @@ compile_() {
     esac
 }
 
-# see comment for "compile".
+# see comment for "compile"
 emit() {
     case z$prog in
     z^)
@@ -446,7 +446,7 @@ fromch="^ N [ N succ 0 ]"
 print="[ c echo $fromch ]"
 input="^ K [ read [ c K toch ] ]"
 
-# this program reads in numbers until you type in 0.
+# this program reads in numbers until you type in 0,
 # then it prints their sum.
 
 loop="
