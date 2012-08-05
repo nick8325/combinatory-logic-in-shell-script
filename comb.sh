@@ -60,14 +60,6 @@ app3()
     lhs=$(app "$1" "$2")
     app "$lhs" "$3"
 }
-app4()
-{
-    if [ $# -ne 4 ]; then
-        err app4
-    fi
-    lhs=$(app3 "$1" "$2" "$3")
-    app "$lhs" "$4"
-}
 
 #
 # an evaluator
