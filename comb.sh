@@ -1,7 +1,8 @@
 #!/bin/sh
 
-# Perform affine reductions eagerly instead of call-by-name
-OPT=y
+# If y, perform certain affine reductions eagerly
+# (might make things slower)
+EAGER=y
 
 INDENT=
 
@@ -111,8 +112,13 @@ lam_() {
         fi
     else
         if free $x $right; then
-            # c: compose
-            pack3 c "$left" "$(lam $x $right)"
+            if [ $x = "$right" ]; then
+                # eta-reduce
+                echo "$left"
+            else
+                # c: compose
+                pack3 c "$left" "$(lam $x $right)"
+            fi
         else
             err lam
         fi
@@ -232,7 +238,7 @@ reduce1() {
         y=$left
         split $right
         z=$(simplify $left)
-        yz=$(app "$y" "$z")
+        yz=$(pack "$y" "$z")
         prog=$(pack3 "$x" "$z" "$yz")
         context=$right
         ;;
@@ -255,7 +261,7 @@ reduce1() {
         y=$left
         split $right
         z=$left
-        yz=$(app "$y" "$z")
+        yz=$(pack "$y" "$z")
         prog=$(pack "$x" "$yz")
         context=$right
         ;;
@@ -294,6 +300,7 @@ reduce() {
     echo "$INDENT   $prog" >&2
     while reduce1; do
         prog_=$(repack "$context" "$prog")
+        echo >&2
         echo "$INDENT-> $prog_" >&2
     done
 
@@ -304,7 +311,7 @@ reduce() {
     export right="$oldright"
 }
 
-if [ z$OPT = zy ]; then
+if [ z$EAGER = zy ]; then
 simplify() {
     OLD_SAFE=$SAFE
     export SAFE=yes
