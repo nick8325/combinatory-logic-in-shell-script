@@ -221,6 +221,10 @@ reduce1() {
 }
 
 reduce() {
+    # run reduce_ in a new scope
+    echo $(reduce_ $*)
+}
+reduce_() {
     prog=$*
     context=end
 
@@ -337,7 +341,7 @@ lam() {
 # square brackets [ ] are used for grouping
 
 compile() {
-    compile_ $(echo $*)
+    echo $(compile_ $(echo $*))
 }
 
 compile_() {
