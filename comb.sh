@@ -464,7 +464,8 @@ loop="
               [ Loop [ $plus Acc N ] ]
           ] ] ] $z"
 
-reduce $(compile $loop)
+# try it out:
+# reduce $(compile $loop)
 
 # cps lists, nil case first
 true="^ T ^ F T"
@@ -519,4 +520,6 @@ insert="
 sort="[ $foldr $insert $nil ]"
 
 # try it out:
-# reduce $(compile "$readlist [ c $writelist $sort ]")
+reduce $(compile "$readlist [ c $writelist $sort ]")
+# to see the output, either unset TRACE
+# or grep for "The answer is"
