@@ -345,8 +345,27 @@ compile() {
 }
 
 compile_() {
-    stack=end
     prog=
+    stack=end
+    # prog is the bit of the program so far parsed.
+    # the "emit" function (below) takes a term and
+    # applies prog to it, updating prog.
+    # prog may be empty: emit takes care of this.
+    #
+    # when we encounter a variable or combinator,
+    # we just emit it (apply prog to it).
+    #
+    # on [, we push prog on the stack, and then clear prog.
+    #
+    # on ], we pop a term off the stack into prog,
+    # and then emit the old contents of prog.
+    #
+    # on ^ X, we push both prog and X, and set prog to ^.
+    # thus lambda abstraction is a little bit different
+    # from everything else.
+    # if we emit a term while prog is ^, we must generate
+    # a lambda abstraction instead of an application.
+    # "emit" takes care of this too.
 
     while [ $# -ne 0 ]; do
         case $1 in
@@ -387,6 +406,7 @@ compile_() {
     esac
 }
 
+# see comment for "compile".
 emit() {
     case z$prog in
     z^)
@@ -428,7 +448,6 @@ input="^ K [ read [ c K toch ] ]"
 
 # this program reads in numbers until you type in 0.
 # then it prints their sum.
-# beware! it is very slow! :)
 
 loop="
   [ $y
