@@ -1,8 +1,13 @@
 #!/bin/sh
 
-# if y, perform certain affine reductions eagerly
+set -e
+
+# if y, perform certain affine reductions eagerly and silently
 # (might make things slower)
 EAGER=y
+
+# if y, print out reductions as you go
+TRACE=y
 
 INDENT=
 
@@ -40,97 +45,28 @@ split()
     split_ $(echo $*)
 }
 # apply a function to an argument
-pack()
+app()
 {
     if [ $# -ne 2 ]; then
-        err pack
+        err app
     fi
     echo "( $1 ) $2"
 }
-pack3()
+app3()
 {
     if [ $# -ne 3 ]; then
-        err pack3
+        err app3
     fi
-    lhs=$(pack "$1" "$2")
-    pack "$lhs" "$3"
+    lhs=$(app "$1" "$2")
+    app "$lhs" "$3"
 }
-pack4()
+app4()
 {
     if [ $# -ne 4 ]; then
-        err pack4
+        err app4
     fi
-    lhs=$(pack3 "$1" "$2" "$3")
-    pack "$lhs" "$4"
-}
-
-# apply a function to an argument and reduce to WHNF
-# or until the head is a non-affine combinator
-app() {
-    simplify $(pack "$@")
-}
-app3() {
-    simplify $(pack3 "$@")
-}
-app4() {
-    simplify $(pack4 "$@")
-}
-
-# free x t: is x free in t?
-free_() {
-    x=$1
-    shift
-    for i in $*; do
-        if [ $x = $i ]; then
-            return 0
-        fi
-    done
-    return 1
-}
-free() {
-    free_ $(echo $*)
-}
-
-# lambda abstraction
-lam_() {
-    x=$1
-    shift
-
-    if [ "$*" = $x ]; then
-        echo "i"
-        return
-    fi
-
-    if ! free $x $*; then
-        pack k "$*"
-        return
-    fi
-
-    split $*
-    # Turner-style translation
-    if free $x $left; then
-        if free $x $right; then
-            pack3 s "$(lam $x $left)" "$(lam $x $right)"
-        else
-            # f: flip
-            pack3 f "$(lam $x $left)" "$right"
-        fi
-    else
-        if free $x $right; then
-            if [ $x = "$right" ]; then
-                # eta-reduce
-                echo "$left"
-            else
-                # c: compose
-                pack3 c "$left" "$(lam $x $right)"
-            fi
-        else
-            err lam
-        fi
-    fi
-}
-lam() {
-    lam_ $(echo $*)
+    lhs=$(app3 "$1" "$2" "$3")
+    app "$lhs" "$4"
 }
 
 #
@@ -149,7 +85,7 @@ repack() {
 
     while [ "$stack" != end ]; do
         split $stack
-        prog=$(pack "$prog" "$left")
+        prog=$(app "$prog" "$left")
         stack=$right
     done
     echo $prog
@@ -193,7 +129,7 @@ reduce1() {
         "("*)
             split $prog
             prog="$left"
-            context=$(pack "$right" "$context")
+            context=$(app "$right" "$context")
             ;;
         *)
             break
@@ -215,7 +151,7 @@ reduce1() {
         (unsafe && args 1) || return 1
         read -p "Enter a number: " i
         split $context
-        prog=$(pack "$left" $i)
+        prog=$(app "$left" $i)
         context=$right
         ;;
     toch)
@@ -224,7 +160,7 @@ reduce1() {
         i=$(force $left)
         num=Z
         for _ in $(seq 1 $i); do
-            num=$(pack S "$num")
+            num=$(app S "$num")
         done
         prog=$(lam S $(lam Z $num))
         context=$right
@@ -243,8 +179,8 @@ reduce1() {
         y=$left
         split $right
         z=$(simplify $left)
-        yz=$(pack "$y" "$z")
-        prog=$(pack3 "$x" "$z" "$yz")
+        yz=$(app "$y" "$z")
+        prog=$(app3 "$x" "$z" "$yz")
         context=$right
         ;;
     f)
@@ -255,7 +191,7 @@ reduce1() {
         y=$left
         split $right
         z=$left
-        prog=$(pack3 "$x" "$z" "$y")
+        prog=$(app3 "$x" "$z" "$y")
         context=$right
         ;;
     c)
@@ -266,8 +202,8 @@ reduce1() {
         y=$left
         split $right
         z=$left
-        yz=$(pack "$y" "$z")
-        prog=$(pack "$x" "$yz")
+        yz=$(app "$y" "$z")
+        prog=$(app "$x" "$yz")
         context=$right
         ;;
     k)
@@ -297,12 +233,16 @@ reduce() {
     prog=$*
     context=end
 
-    echo >&2
-    echo "$INDENT   $prog" >&2
+    if [ z$TRACE = zy ]; then
+        echo >&2
+        echo "$INDENT   $prog" >&2
+    fi
     while reduce1; do
         prog_=$(repack "$context" "$prog")
-        echo >&2
-        echo "$INDENT-> $prog_" >&2
+        if [ z$TRACE = zy ]; then
+            echo >&2
+            echo "$INDENT-> $prog_" >&2
+        fi
     done
 
     repack "$context" "$prog"
@@ -335,31 +275,174 @@ simplify() {
 }
 fi
 
+#
+# lambda calculus
+#
+
+# free x t: is x free in t?
+free_() {
+    x=$1
+    shift
+    for i in $*; do
+        if [ $x = $i ]; then
+            return 0
+        fi
+    done
+    return 1
+}
+free() {
+    free_ $(echo $*)
+}
+
+# lambda abstraction
+lam_() {
+    x=$1
+    shift
+
+    if [ "$*" = $x ]; then
+        echo "i"
+        return
+    fi
+
+    if ! free $x $*; then
+        app k "$*"
+        return
+    fi
+
+    split $*
+    # Turner-style translation
+    if free $x $left; then
+        if free $x $right; then
+            app3 s "$(lam $x $left)" "$(lam $x $right)"
+        else
+            # f: flip
+            app3 f "$(lam $x $left)" "$right"
+        fi
+    else
+        if free $x $right; then
+            if [ $x = "$right" ]; then
+                # eta-reduce
+                echo "$left"
+            else
+                # c: compose
+                app3 c "$left" "$(lam $x $right)"
+            fi
+        else
+            err lam
+        fi
+    fi
+}
+lam() {
+    lam_ $(echo $*)
+}
+
+# compile a normalish lambda-calculus syntax to combinatory logic
+# application is written with a space
+# \X.t is written as ^ X [ t ]
+#   (use uppercase variables because if you use a variable
+#    whose name is the same as a combinator things will go weird)
+# if t is atomic you can write ^ X t instead
+# atomic terms are variables, combinators and lambdas
+# square brackets [ ] are used for grouping
+
+compile() {
+    compile_ $(echo $*)
+}
+
+compile_() {
+    stack=end
+    prog=
+
+    while [ $# -ne 0 ]; do
+        case $1 in
+        "[")
+            stack=$(app "$prog" "$stack")
+            prog=
+            shift
+            ;;
+        "^")
+            var=$2
+            stack=$(app "$prog" "$stack")
+            stack=$(app "$var" "$stack")
+            prog=^
+            shift 2
+            ;;
+        "]")
+            oldprog=$prog
+            split $stack
+            prog=$left
+            stack=$right
+            emit $oldprog
+            shift
+            ;;
+        *)
+            emit $1
+            shift
+            ;;
+        esac
+    done
+
+    case $stack in
+    end)
+       echo $prog
+       ;;
+    *)
+       err compile
+       ;;
+    esac
+}
+
+emit() {
+    case z$prog in
+    z^)
+        split $stack
+        var="$left"
+        split $right
+        export prog="$left"
+        export stack="$right"
+        emit $(lam $var $*)
+        ;;
+    z)
+        export prog="$*"
+        ;;
+    *)
+        prog=$(simplify $(app "$prog" "$*"))
+        export prog
+        ;;
+    esac
+}
+
+#
+# an example
+#
+
 # y combinator
-y_=$(lam X $(app F "$(app X X)"))
-y=$(lam F $(app "$y_" "$y_"))
+y_="^ X [ F [ X X ] ]"
+y="^ F [ $y_ $y_ ]"
 
 # church numerals
-z=$(lam S $(lam Z Z))
-s=$(lam N $(lam S $(lam Z $(app S "$(app3 N S Z)"))))
-isz=$(lam N $(lam T $(lam F $(app3 N "$(lam _ F)" T))))
-plus=$(lam M $(lam N $(app3 M "$s" N)))
+z="^ S ^ Z Z"
+s="^ N ^ S ^ Z [ S [ N S Z ] ]"
+isz="^ N ^ T ^ F [ N [ ^ _ F ] T ]"
+plus="^ M ^ N [ M $s N ]"
 
 # conversion & i/o of church numerals
-fromch=$(lam N $(app3 N succ 0))
-print=$(lam N $(app echo "$(app3 N succ 0)"))
-input_=$(lam N $(app K "$(app toch N)"))
-input=$(lam K $(app read "$input_"))
+fromch="^ N [ N succ 0 ]"
+print="[ c echo $fromch ]"
+input="^ K [ read [ c K toch ] ]"
 
 # this program reads in numbers until you type in 0.
 # then it prints their sum.
 # beware! it is very slow! :)
 
-done=$(app "$print" Acc)
-acc_=$(app3 "$plus" Acc N)
-again=$(app Loop "$acc_")
-body=$(app4 "$isz" N "$done" "$again")
-loop_=$(app "$input" "$(lam N $body)")
-loop=$(app "$y" "$(lam Loop $(lam Acc $loop_))")
+loop="
+  [ $y
+      ^ Loop ^ Acc [
+        $input
+          ^ N [
+            $isz N
+              [ $print Acc ]
+              [ Loop [ $plus Acc N ] ]
+          ] ] ] $z"
 
-reduce $(app "$loop" "$z")
+reduce $(compile $loop)
