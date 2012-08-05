@@ -171,7 +171,7 @@ reduce1() {
         y=$left
         split $right
         z=$(simplify $left)
-        yz=$(app "$y" "$z")
+        yz=$(simplify $(app "$y" "$z"))
         prog=$(app3 "$x" "$z" "$yz")
         context=$right
         ;;
@@ -194,7 +194,7 @@ reduce1() {
         y=$left
         split $right
         z=$left
-        yz=$(app "$y" "$z")
+        yz=$(simplify $(app "$y" "$z"))
         prog=$(app "$x" "$yz")
         context=$right
         ;;
