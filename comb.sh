@@ -86,7 +86,7 @@ repack() {
 # terminate if a combinator is undersaturated
 args() {
     right=$context
-    for _ in $(seq 1 $1); do
+    for xxx in $(seq 1 $1); do
         if ! split $right; then
             return 1
         fi
@@ -141,7 +141,8 @@ reduce1() {
         ;;
     read)
         (unsafe && args 1) || return 1
-        read -p "Enter a term: " i
+        echo -n "Enter a term: " >&2
+        read i
         split $context
         prog=$(app "$left" "$(compile $i)")
         context=$right
@@ -151,7 +152,7 @@ reduce1() {
         split $context
         i=$(force $left)
         prog=$(app k i)
-        for _ in $(seq 1 $i); do
+        for xxx in $(seq 1 $i); do
             prog=$(app "$(app s c)" "$prog")
         done
         context=$right
