@@ -37,35 +37,37 @@ split()
 {
     split_ $(echo $*)
 }
-pair()
+pack()
 {
     if [ $# -ne 2 ]; then
-        err pair
+        err pack
     fi
     echo "( $1 ) $2"
 }
-app()
-{
-    if [ $# -ne 2 ]; then
-        err app
-    fi
-    simplify $(pair "$1" "$2")
-}
-app3()
+pack3()
 {
     if [ $# -ne 3 ]; then
-        err app3
+        err pack3
     fi
-    lhs=$(app "$1" "$2")
-    app "$lhs" "$3"
+    lhs=$(pack "$1" "$2")
+    pack "$lhs" "$3"
 }
-app4()
+pack4()
 {
     if [ $# -ne 4 ]; then
-        err app4
+        err pack4
     fi
-    lhs=$(app3 "$1" "$2" "$3")
-    app "$lhs" "$4"
+    lhs=$(pack3 "$1" "$2" "$3")
+    pack "$lhs" "$4"
+}
+app() {
+    simplify $(pack "$@")
+}
+app3() {
+    simplify $(pack3 "$@")
+}
+app4() {
+    simplify $(pack4 "$@")
 }
 
 # free variables
@@ -94,7 +96,7 @@ lam_() {
     fi
 
     if ! free $x $*; then
-        app k "$*"
+        pack k "$*"
         return
     fi
 
@@ -102,15 +104,15 @@ lam_() {
     # Turner-style translation
     if free $x $left; then
         if free $x $right; then
-            app3 s "$(lam $x $left)" "$(lam $x $right)"
+            pack3 s "$(lam $x $left)" "$(lam $x $right)"
         else
             # f: flip
-            app3 f "$(lam $x $left)" "$right"
+            pack3 f "$(lam $x $left)" "$right"
         fi
     else
         if free $x $right; then
             # c: compose
-            app3 c "$left" "$(lam $x $right)"
+            pack3 c "$left" "$(lam $x $right)"
         else
             err lam
         fi
@@ -136,7 +138,7 @@ repack() {
 
     while [ "$stack" != end ]; do
         split $stack
-        prog=$(pair "$prog" "$left")
+        prog=$(pack "$prog" "$left")
         stack=$right
     done
     echo $prog
@@ -162,6 +164,10 @@ unsafe() {
 }
 
 # the evaluator itself
+# environment variables:
+#   prog -- the current term
+#   context -- the context
+# both are modified by reduction
 # combinators:
 #   s, k, i,
 #   c -- composition,
@@ -171,15 +177,12 @@ unsafe() {
 #   toch -- turn a shell number into a church numeral
 #   succ -- increment a shell number
 reduce1() {
-    context=end
-    prog="$*"
-
     while true; do
         case "$prog" in
         "("*)
             split $prog
             prog="$left"
-            context=$(pair "$right" "$context")
+            context=$(pack "$right" "$context")
             ;;
         *)
             break
@@ -187,19 +190,22 @@ reduce1() {
         esac
     done
 
+    export prog context
+
     case "$prog" in
     echo)
         (unsafe && args 1) || return 1
         split $context
         echo The answer is: $(force $left) >&2
-        echo $(repack "$right" i)
+        prog=i
+        context=$right
         ;;
     read)
         (unsafe && args 1) || return 1
         read -p "Enter a number: " i
         split $context
-        k=$(app "$left" $i)
-        echo $(repack "$right" "$k")
+        prog=$(pack "$left" $i)
+        context=$right
         ;;
     toch)
         (unsafe && args 1) || return 1
@@ -207,16 +213,16 @@ reduce1() {
         i=$(force $left)
         num=Z
         for _ in $(seq 1 $i); do
-            num=$(app S "$num")
+            num=$(pack S "$num")
         done
-        num=$(lam S $(lam Z $num))
-        echo $(repack "$right" "$num")
+        prog=$(lam S $(lam Z $num))
+        context=$right
         ;;
     succ)
         (unsafe && args 1) || return 1
         split $context
-        x=$(($(force $left)+1))
-        echo $(repack "$right" $x)
+        prog=$(($(force $left)+1))
+        context=$right
         ;;
     s)
         (unsafe && args 3) || return 1
@@ -225,11 +231,10 @@ reduce1() {
         split $right
         y=$left
         split $right
-        z=$left
-        a=$(app "$x" "$z")
-        b=$(app "$y" "$z")
-        c=$(app "$a" "$b")
-        echo $(repack "$right" "$c")
+        z=$(simplify $left)
+        yz=$(app "$y" "$z")
+        prog=$(pack3 "$x" "$z" "$yz")
+        context=$right
         ;;
     f)
         args 3 || return 1
@@ -239,8 +244,8 @@ reduce1() {
         y=$left
         split $right
         z=$left
-        r=$(app3 "$x" "$z" "$y")
-        echo $(repack "$right" "$r")
+        prog=$(pack3 "$x" "$z" "$y")
+        context=$right
         ;;
     c)
         args 3 || return 1
@@ -251,8 +256,8 @@ reduce1() {
         split $right
         z=$left
         yz=$(app "$y" "$z")
-        r=$(app "$x" "$yz")
-        echo $(repack "$right" "$r")
+        prog=$(pack "$x" "$yz")
+        context=$right
         ;;
     k)
         args 2 || return 1
@@ -260,40 +265,67 @@ reduce1() {
         x=$left
         split $right
         y=$left
-        echo $(repack "$right" "$x")
+        prog=$x
+        context=$right
         ;;
     i)
         args 1 || return 1
         split $context
-        echo $(repack "$right" "$left")
+        prog=$left
+        context=$right
         ;;
     *)
         return 1
         ;;
     esac
+
+    export prog context
 }
 
 reduce() {
-    prog=$*
-    arrow="  "
+    oldprog=$prog
+    oldcontext=$context
+    oldleft=$left
+    oldright=$right
+    export prog="$*"
+    export context=end
 
     echo >&2
-    while [ "$prog" != stuck ]; do
-        echo "$INDENT$arrow $prog" >&2
-        arrow="->"
-        oldprog=$prog
-        prog=$(reduce1 $prog || echo stuck)
+    echo "$INDENT   $prog" >&2
+    while reduce1; do
+        prog_=$(repack "$context" "$prog")
+        echo "$INDENT-> $prog_" >&2
     done
 
-    echo $oldprog
+    repack "$context" "$prog"
+    export prog="$oldprog"
+    export context="$oldcontext"
+    export left="$oldleft"
+    export right="$oldright"
 }
 
 if [ z$OPT = zy ]; then
 simplify() {
     OLD_SAFE=$SAFE
     export SAFE=yes
-    reduce1 $* || echo $*
+    oldprog="$prog"
+    oldcontext="$context"
+    export prog="$*"
+    export context=end
+
+    if reduce1; then
+        while reduce1; do
+            true
+        done
+
+        repack "$context" "$prog"
+    else
+        echo $*
+    fi
+
     export SAFE=$OLD_SAFE
+    export prog="$oldprog"
+    export context="$oldcontext"
 }
 else
 simplify() {
@@ -322,7 +354,6 @@ fromch=$(lam N $(app3 N succ 0))
 print=$(lam N $(app echo "$(app3 N succ 0)"))
 input_=$(lam N $(app K "$(app toch N)"))
 input=$(lam K $(app read "$input_"))
-unsafe || echo oops
 
 # this program reads in numbers until you type in 0.
 # then it prints their sum.
