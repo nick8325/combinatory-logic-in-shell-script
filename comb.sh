@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# If y, perform certain affine reductions eagerly
+# if y, perform certain affine reductions eagerly
 # (might make things slower)
 EAGER=y
 
@@ -11,7 +11,8 @@ err() {
     exit 1
 }
 
-# binary expressions
+# pairs/function application.
+# we encode t u as ( t ) u.
 split_()
 {
     if [ z$1 != "z(" ]; then
@@ -38,6 +39,7 @@ split()
 {
     split_ $(echo $*)
 }
+# apply a function to an argument
 pack()
 {
     if [ $# -ne 2 ]; then
@@ -61,6 +63,9 @@ pack4()
     lhs=$(pack3 "$1" "$2" "$3")
     pack "$lhs" "$4"
 }
+
+# apply a function to an argument and reduce to WHNF
+# or until the head is a non-affine combinator
 app() {
     simplify $(pack "$@")
 }
@@ -71,7 +76,7 @@ app4() {
     simplify $(pack4 "$@")
 }
 
-# free variables
+# free x t: is x free in t?
 free_() {
     x=$1
     shift
@@ -160,8 +165,8 @@ args() {
     done
 }
 
-# in safe mode, don't do possibly nonterminating reductions or i/o,
-# and don't print anything
+# in safe mode, don't do possibly nonterminating reductions or i/o.
+# (safe mode is used to simplify terms when EAGER=y)
 SAFE=
 unsafe() {
     if [ z$SAFE != z ]; then
@@ -289,12 +294,8 @@ reduce1() {
 }
 
 reduce() {
-    oldprog=$prog
-    oldcontext=$context
-    oldleft=$left
-    oldright=$right
-    export prog="$*"
-    export context=end
+    prog=$*
+    context=end
 
     echo >&2
     echo "$INDENT   $prog" >&2
@@ -305,20 +306,18 @@ reduce() {
     done
 
     repack "$context" "$prog"
-    export prog="$oldprog"
-    export context="$oldcontext"
-    export left="$oldleft"
-    export right="$oldright"
+}
+
+force() {
+    INDENT="$INDENT  "
+    reduce $*
 }
 
 if [ z$EAGER = zy ]; then
 simplify() {
-    OLD_SAFE=$SAFE
-    export SAFE=yes
-    oldprog="$prog"
-    oldcontext="$context"
-    export prog="$*"
-    export context=end
+    SAFE=y
+    prog=$*
+    context=end
 
     if reduce1; then
         while reduce1; do
@@ -329,22 +328,12 @@ simplify() {
     else
         echo $*
     fi
-
-    export SAFE=$OLD_SAFE
-    export prog="$oldprog"
-    export context="$oldcontext"
 }
 else
 simplify() {
     echo $*
 }
 fi
-force() {
-    OLD_INDENT=$INDENT
-    INDENT="$INDENT  "
-    reduce $*
-    INDENT=$OLD_INDENT
-}
 
 # y combinator
 y_=$(lam X $(app F "$(app X X)"))
