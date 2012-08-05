@@ -141,9 +141,9 @@ reduce1() {
         ;;
     read)
         (unsafe && args 1) || return 1
-        read -p "Enter a number: " i
+        read -p "Enter a term: " i
         split $context
-        prog=$(app "$left" $i)
+        prog=$(app "$left" "$(compile $i)")
         context=$right
         ;;
     toch)
@@ -382,12 +382,16 @@ compile_() {
             shift 2
             ;;
         "]")
-            oldprog=$prog
-            split $stack
-            prog=$left
-            stack=$right
-            emit $oldprog
-            shift
+            if [ "$stack" = end ]; then
+                err underflow
+            else
+                oldprog=$prog
+                split $stack
+                prog=$left
+                stack=$right
+                emit $oldprog
+                shift
+            fi
             ;;
         *)
             emit $1
