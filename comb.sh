@@ -451,30 +451,12 @@ fromch="^ N [ N succ 0 ]"
 print="[ c echo $fromch ]"
 input="^ K [ read [ c K toch ] ]"
 
-# this program reads in numbers until you type in 0,
-# then it prints their sum.
-
-loop="
-  [ $y
-      ^ Loop ^ Acc [
-        $input
-          ^ N [
-            $isz N
-              [ $print Acc ]
-              [ Loop [ $plus Acc N ] ]
-          ] ] ] $z"
-
-# try it out:
-# reduce $(compile $loop)
-
-# cps lists, nil case first
-true="^ T ^ F T"
-false="^ T ^ F F"
-
+# gödel-style lists
 nil="^ N ^ C N"
-cons="^ X ^ Xs ^ N ^ C [ C X Xs ]"
-null="^ Xs ^ T ^ F [ Xs T [ ^ _ ^ _ F ] ]"
+cons="^ X ^ Xs ^ N ^ C [ C Xs X [ Xs N C ] ]"
+null="^ Xs ^ T ^ F [ Xs T [ ^ _ ^ _ ^ _ F ] ]"
 
+# read a list of numbers terminated by a 0
 readlist="
   ^ K [
   [ $y
@@ -486,40 +468,54 @@ readlist="
           [ Loop [ $cons N Acc ] ] ] ] ] $nil ]"
 
 writelist="
-  [ $y
-    ^ Loop ^ Xs [
-      Xs i [ ^ Y ^ Ys [ $print Y Loop Ys ] ] ] ]"
+  ^ Xs [
+    Xs i [ ^ _ ^ Y ^ WYs [ $print Y WYs ] ] ]"
 
 foldr="
-  ^ Op ^ E
-  [ $y
-    ^ Loop ^ Xs [
-      Xs E [ ^ Y ^ Ys [ Op Y [ Loop Ys ] ] ] ] ]"
+  ^ Op ^ E ^ Xs
+    [ Xs E [ ^ _ Op ] ]"
 
 replicate="^ N ^ X [ N [ $cons X ] $nil ]"
 
-drop1="^ Xs [ Xs $nil [ ^ Y ^ Ys Ys ] ]"
+drop1="^ Xs [ Xs $nil [ ^ Ys ^ _ ^ _ Ys ] ]"
 drop="^ N ^ Xs [ N $drop1 Xs ]"
 
+# example 1
+# this program reads in numbers until you type in 0,
+# then it prints their sum.
+
+sum="
+  [ $y
+      ^ Loop ^ Acc [
+        $input
+          ^ N [
+            $isz N
+              [ $print Acc ]
+              [ Loop [ $plus Acc N ] ]
+          ] ] ] $z"
+
+# try it out:
+# reduce $(compile $sum)
+
+# example 2
 # insertion sort!
 
 leq="^ M ^ N [
   $null [ $drop N [ $replicate M unit ] ] ]"
 
 insert="
-  ^ X [
-    $y [
-      ^ Loop ^ Xs [
-        Xs [ $cons X $nil ]
-           [ ^ Y ^ Ys
-             [ $leq X Y
-               [ $cons X Xs ]
-               [ $cons Y [ Loop Ys ] ] ] ] ] ] ]"
-
+  ^ X ^ Xs
+    [ Xs [ $cons X $nil ]
+      [ ^ Ys ^ Y ^ IYs
+        [ $leq X Y
+          [ $cons X [ $cons Y Ys ] ]
+          [ $cons Y IYs ] ] ] ]"
 
 sort="[ $foldr $insert $nil ]"
 
+
 # try it out:
 reduce $(compile "$readlist [ c $writelist $sort ]")
-# to see the output, either unset TRACE
-# or grep for "The answer is"
+# type in numbers, 0 to end.
+# to see the output, grep for "The answer is".
+# warning: it is very very slow! :)
