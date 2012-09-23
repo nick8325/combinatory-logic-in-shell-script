@@ -115,6 +115,7 @@ unsafe() {
 #   read -- read term x
 #   toch -- turn a shell number into a church numeral
 #   succ -- increment a shell number
+#   force x k -- reduce x and then evaluate k x
 reduce1() {
     while true; do
         case "$prog" in
@@ -140,12 +141,10 @@ reduce1() {
         context=$right
         ;;
     read)
-        (unsafe && args 1) || return 1
+        unsafe || return 1
         echo -n "Enter a term: " >&2
         read i
-        split $context
-        prog=$(app "$left" "$(compile $i)")
-        context=$right
+        prog="$(compile $i)"
         ;;
     toch)
         (unsafe && args 1) || return 1
@@ -161,6 +160,14 @@ reduce1() {
         (unsafe && args 1) || return 1
         split $context
         prog=$(($(force $left)+1))
+        context=$right
+        ;;
+    force)
+        (unsafe && args 2) || return 1
+        split $context
+        val=$(force $left)
+        split $right
+        prog=$(app "$left" "$val")
         context=$right
         ;;
     s)
@@ -449,7 +456,7 @@ plus="^ M ^ N [ M $s N ]"
 # conversion & i/o of church numerals
 fromch="^ N [ N succ 0 ]"
 print="[ c echo $fromch ]"
-input="^ K [ read [ c K toch ] ]"
+input="^ K [ force [ toch read ] K ]"
 
 # gödel-style lists
 nil="^ N ^ C N"
@@ -469,7 +476,15 @@ readlist="
 
 writelist="
   ^ Xs [
-    Xs i [ ^ _ ^ Y ^ WYs [ $print Y WYs ] ] ]"
+    force [
+      Xs nil ^ _ ^ Y ^ Ys [
+        force [ $fromch Y ] ^ Z [
+          force Ys ^ Zs [
+            Z Zs
+          ]
+        ]
+      ]
+    ] echo ]"
 
 foldr="
   ^ Op ^ E ^ Xs
@@ -515,7 +530,7 @@ sort="[ $foldr $insert $nil ]"
 
 
 # try it out:
-# reduce $(compile "$readlist [ c $writelist $sort ]")
+reduce $(compile "$readlist [ c $writelist $sort ]")
 # type in numbers, 0 to end.
 # to see the output, grep for "The answer is".
 # warning: it is very very slow! :)
