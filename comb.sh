@@ -511,6 +511,7 @@ sum="
 
 # try it out:
 reduce $(compile $sum)
+# type in numbers, 0 to end.
 
 # example 2
 # insertion sort!
@@ -532,5 +533,3 @@ sort="[ $foldr $insert $nil ]"
 # try it out:
 reduce $(compile "$readlist [ c $writelist $sort ]")
 # type in numbers, 0 to end.
-# to see the output, grep for "The answer is".
-# warning: it is very very slow! :)
